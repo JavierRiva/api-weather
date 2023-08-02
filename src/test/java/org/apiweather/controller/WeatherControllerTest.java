@@ -26,36 +26,36 @@ class WeatherControllerTest {
 
     @Test
     void testGetWeatherDataByCityAndProvince_Success() throws ApiWeatherException {
-        // Arrange
+        // Configuracion y preparacion de entorno
         String ciudad = "Rosario";
         String provincia = "Santa Fe";
         WeatherDataResponse response = TestData.getWeatherDataResponse();
 
-        // Mockear el comportamiento del servicio
+        // Mockear servicio
         when(weatherService.getWeatherData(ciudad, provincia)).thenReturn(response);
 
-        // Act
+        // Invocacion del metodo
         ResponseEntity<Object> responseEntity = weatherController.getWeatherDataByCityAndProvince(ciudad, provincia);
 
-        // Assert
+        // Validaciones
         assertEquals(HttpStatus.OK, responseEntity.getStatusCode());
         assertEquals(response, responseEntity.getBody());
     }
 
     @Test
     void testGetWeatherDataByCityAndProvince_ApiWeatherException() throws ApiWeatherException {
-        // Arrange
+        // Configuracion y preparacion de entorno
         String ciudad = "Rosario";
         String provincia = "Santa Fe";
         String errorMessage = "Error en la consulta de datos meterológicos";
 
-        // Mockear el comportamiento del servicio para lanzar una excepción
+        // Mockear servicio para lanzar una excepción
         when(weatherService.getWeatherData(ciudad, provincia)).thenThrow(new ApiWeatherException(errorMessage));
 
-        // Act
+        // Invocacion del metodo
         ResponseEntity<Object> responseEntity = weatherController.getWeatherDataByCityAndProvince(ciudad, provincia);
 
-        // Assert
+        // Validaciones
         assertEquals(HttpStatus.BAD_REQUEST, responseEntity.getStatusCode());
         assertEquals(errorMessage, responseEntity.getBody());
     }

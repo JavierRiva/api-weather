@@ -23,12 +23,14 @@ public class WeatherServiceImpl implements WeatherService {
 
     private final WeatherDataCrudRepository weatherDataCrudRepository;
     private final WeatherDataEntityToWeatherDataConverter weatherDataEntityToWeatherDataConverter;
+    private final RestTemplate restTemplate;
 
     @Value("${accuweather.api.key}")
     private String apiKey;
     @Value("${accuweather.url.base}")
     private String accuweatherBaseUrl;
 
+    // Mensajes de error
     private static final String ERROR_CIUDAD_NO_ENCONTRADA = "No se encontraron resultados para la ciudad '%s'. " +
             "Verifique que el nombre sea correcto.";
     private static final String ERROR_PROVINCIA_NO_ENCONTRADA = "No se encontraron resultados para la ciudad en la " +
@@ -40,40 +42,40 @@ public class WeatherServiceImpl implements WeatherService {
     @Override
     public WeatherDataResponse getWeatherData(String ciudad, String provincia) {
 
-        RestTemplate restTemplate = new RestTemplate();
-        List<CityData> cities = obtainCitiesFromAccuweather(restTemplate, ciudad);
-        WeatherData weatherData = obtainWeatherDataFromAccuweather(restTemplate, cities, ciudad, provincia);
-
-        WeatherDataEntity entity = weatherData.toEntity(ciudad, provincia);
-        weatherDataCrudRepository.save(entity);
-        WeatherDataEntity e2 = weatherDataCrudRepository
-                .findById(entity.getId())
+        // Obtener la lista de ciudades desde Accuweather
+        List<CityData> cities = obtainCitiesFromAccuweather(ciudad);
+        // Obtener los datos meteorológicos desde Accuweather
+        WeatherData weatherData = obtainWeatherDataFromAccuweather(cities, ciudad, provincia);
+        // Convertir los datos en una entidad y guardarla en la base de datos
+        WeatherDataEntity entityToSave = weatherData.toEntity(ciudad, provincia);
+        weatherDataCrudRepository.save(entityToSave);
+        // Obtener la entidad guardada y convertirla a response
+        WeatherDataEntity entityFromDB = weatherDataCrudRepository
+                .findById(entityToSave.getId())
                 .orElseThrow(() -> new ApiWeatherException(ERROR_DATA_BASE));
-        return weatherDataEntityToWeatherDataConverter.convert(e2);
+        return weatherDataEntityToWeatherDataConverter.convert(entityFromDB);
     }
 
-    private List<CityData> obtainCitiesFromAccuweather(RestTemplate restTemplate, String ciudad) {
+    // Método para obtener la lista de ciudades desde Accuweather
+    private List<CityData> obtainCitiesFromAccuweather(String ciudad) {
 
-        // Construye la URL completa con el ID y la API Key
         String urlForCitySearch = accuweatherBaseUrl + "locations/v1/cities/AR/search?apikey=" + apiKey + "&q=" + ciudad;
-        // Hacemos la solicitud GET a la API con restTemplate.exchange()
         ResponseEntity<List<CityData>> citiesResponse = restTemplate.exchange(
                 urlForCitySearch,
                 HttpMethod.GET,
                 null,
                 new ParameterizedTypeReference<List<CityData>>() {
                 });
-        // Obtenemos la lista de WeatherData de la respuesta
         List<CityData> cities = citiesResponse.getBody();
         validateNullOrEmptyList(cities, ciudad, ERROR_CIUDAD_NO_ENCONTRADA);
         return cities;
     }
 
-    private WeatherData obtainWeatherDataFromAccuweather(RestTemplate restTemplate, List<CityData> cities, String ciudad, String provincia) {
+    // Método para obtener los datos meteorológicos desde Accuweather
+    private WeatherData obtainWeatherDataFromAccuweather(List<CityData> cities, String ciudad, String provincia) {
 
         String locationKey = getLocationKey(cities, provincia);
         String urlForCurrentConditions = accuweatherBaseUrl + "currentconditions/v1/" + locationKey + "?apikey=" + apiKey;
-
         ResponseEntity<List<WeatherData>> weatherResponse = restTemplate.exchange(
                 urlForCurrentConditions,
                 HttpMethod.GET,
@@ -85,12 +87,16 @@ public class WeatherServiceImpl implements WeatherService {
         return weatherResponse.getBody().get(0);
     }
 
+    // Método para validar si la lista de ciudades o de datos meteorológicos de una ciudad está vacía o nula
+    // Si esta vacía o nula, lanza una excepción ApiWeatherException
     private void validateNullOrEmptyList(List<?> cities, String value, String message) {
         if (cities == null || cities.isEmpty()) {
             throw new ApiWeatherException(String.format(message, value));
         }
     }
 
+    // Método para obtener el locationKey de la ciudad en la provincia dada
+    // Si no se encuentra la ciudad en la provincia indicada, lanza una excepción ApiWeatherException
     private String getLocationKey(List<CityData> cities, String provincia) {
         return cities.stream()
                 .filter(cityData -> provincia.equalsIgnoreCase(cityData.getAdministrativeArea().getLocalizedName()))
