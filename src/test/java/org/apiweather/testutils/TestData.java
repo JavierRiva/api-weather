@@ -57,6 +57,7 @@ public class TestData {
 
     public static WeatherDataEntity getWeatherDataEntity() {
         return WeatherDataEntity.builder()
+                .id(101L)
                 .city("Rosario")
                 .province("Santa Fe")
                 .localObservationDateTime("2023-08-01T15:55:00-03:00")
